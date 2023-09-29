@@ -5,34 +5,93 @@ import (
 	"time"
 )
 
-/*type FieldType int
+type FieldType int
 
 const (
 	NilType FieldType = iota
+	MapType
+	ArrayType
 	IntType
 	Int8Type
 	Int16Type
 	Int32Type
 	Int64Type
-	UintType
-	Uint8Type
-	Uint16Type
-	Uint32Type
-	Uint64Type
 	BoolType
 	StringType
 	Float32Type
 	Float64Type
 	TimeType
 	UnknownType
-)*/
+)
 
-type Field struct {
-	value interface{}
+// Only used w/in Go -- Ok to be skipped by gomobile
+func TypeOf(value interface{}) FieldType {
+	switch value.(type) {
+	case map[string]interface{}:
+		return MapType
+	case []interface{}:
+		return ArrayType
+	case int, uint:
+		return IntType
+	case int8, uint8:
+		return Int8Type
+	case int16, uint16:
+		return Int16Type
+	case int32, uint32:
+		return Int32Type
+	case int64, uint64:
+		return Int64Type
+	case bool:
+		return BoolType
+	case string:
+		return StringType
+	case float32:
+		return Float32Type
+	case float64:
+		return Float64Type
+	case time.Time:
+		return TimeType
+	default:
+		return UnknownType
+	}
 }
 
-func NewField(v interface{}) *Field {
-	return &Field{v}
+type Container interface {
+	Set(*Field) error
+}
+
+type Field struct {
+	MapParent bool
+	index     int
+	key       string
+	value     interface{}
+}
+
+// Only used w/in Go -- Ok to be skipped by gomobile
+func NewArrayField(index int, v interface{}) *Field {
+	return &Field{MapParent: false, index: index, value: v}
+}
+
+// Only used w/in Go -- Ok to be skipped by gomobile
+func NewMapField(key string, v interface{}) *Field {
+	return &Field{MapParent: true, key: key, value: v}
+}
+
+func (f *Field) Index() int {
+	return f.index
+}
+
+func (f *Field) Key() string {
+	return f.key
+}
+
+// For use in Go -- can be skipped by gomobile
+func (f *Field) Value() interface{} {
+	return f.value
+}
+
+func (f *Field) Type() int {
+	return int(TypeOf(f.value))
 }
 
 func (f *Field) IsNil() bool {
@@ -231,4 +290,28 @@ func (f *Field) GetTime() (int64, error) {
 
 func (f *Field) SetTime(v int64) {
 	f.value = time.UnixMilli(v)
+}
+
+func (f *Field) GetMap() (*Map, error) {
+	val, ok := f.value.(map[string]interface{})
+	if !ok {
+		return nil, errors.New("GetMap() called on a non-map value")
+	}
+	return NewMap(val), nil
+}
+
+func (f *Field) SetMap(m *Map) {
+	f.value = m.items
+}
+
+func (f *Field) GetArray() (*Array, error) {
+	val, ok := f.value.([]interface{})
+	if !ok {
+		return nil, errors.New("GetArray() called on a non-array value")
+	}
+	return NewArray(val), nil
+}
+
+func (f *Field) SetArray(a *Array) {
+	f.value = a.items
 }

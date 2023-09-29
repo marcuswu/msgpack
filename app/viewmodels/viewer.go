@@ -22,15 +22,26 @@ viewer actions:
 */
 type MsgPackViewerState struct {
 	Filename string
-	data     *logic.Map
+	Data     *logic.Map
 	Error    error
 }
 
 func (s *MsgPackViewerState) Clone() state.UIState {
-	return &MsgPackViewerState{Filename: s.Filename, data: s.data.Clone(), Error: s.Error}
+	return &MsgPackViewerState{Filename: s.Filename, Data: s.Data.Clone(), Error: s.Error}
 }
 
-type MsgPackStateFunc func(*MsgPackViewerState)
+// type MsgPackStateFunc func(*MsgPackViewerState)
+type MsgPackStateFunc interface {
+	WithState(*MsgPackViewerState)
+}
+type ViewerStateFunc struct {
+	stateFunc func(*MsgPackViewerState)
+}
+
+func (sf *ViewerStateFunc) WithState(state *MsgPackViewerState) {
+	sf.stateFunc(state)
+}
+
 type MsgPackStateObserver interface {
 	Update(*MsgPackViewerState)
 }
@@ -63,7 +74,7 @@ func NewViewerViewModel(filename string) *ViewerViewModel {
 		vm.UpdateState(state)
 		return vm
 	}
-	state.data = logic.NewMap(data)
+	state.Data = logic.NewMap(data)
 	vm.UpdateState(state)
 	return vm
 }
@@ -80,73 +91,48 @@ func (b *ViewerViewModel) CloneState() *MsgPackViewerState {
 }
 
 func (b *ViewerViewModel) WithState(stateFunc MsgPackStateFunc) {
-	stateFunc(b.state.Load().(*MsgPackViewerState))
+	stateFunc.WithState(b.state.Load().(*MsgPackViewerState))
 }
 
 func (b *ViewerViewModel) Observe(id string, callback MsgPackStateObserver) {
 	b.observers[id] = callback
 }
 
-func (b *ViewerViewModel) ReadState() *MsgPackViewerState {
-	return b.state.Load().(*MsgPackViewerState)
-}
-
-func (vm *ViewerViewModel) AddValue(destinationPath string, key string, value *logic.Field) {
-	state := vm.CloneState()
-	state.Error = state.data.Add(destinationPath, key, value)
-	vm.UpdateState(state)
-}
-
-func (vm *ViewerViewModel) ChangeValue(keyPath string, value *logic.Field) {
-	state := vm.CloneState()
-	state.Error = state.data.Set(keyPath, value)
-	vm.UpdateState(state)
-}
-
-func (vm *ViewerViewModel) RemoveValue(keyPath string) {
-	state := vm.CloneState()
-	state.Error = state.data.Remove(keyPath)
-	vm.UpdateState(state)
-}
-
-func (vm *ViewerViewModel) GetValue(keyPath string) (*logic.Field, error) {
-	return vm.ReadState().data.Get(keyPath)
-}
-
-func (vm *ViewerViewModel) KeySize() int {
-	return vm.ReadState().data.KeySize()
-}
-
-func (vm *ViewerViewModel) GetKey(i int) string {
-	return vm.ReadState().data.GetKey(i)
-}
+// func (b *ViewerViewModel) ReadState() *MsgPackViewerState {
+// 	return b.state.Load().(*MsgPackViewerState)
+// }
 
 func (vm *ViewerViewModel) SaveFile(filename string) {
-	vm.WithState(func(state *MsgPackViewerState) {
-		bytes, err := msgpack.Marshal(state.data.Items)
-		if err != nil {
-			state.Error = fmt.Errorf("Could not convert data: %v", err)
-		}
+	vm.WithState(&ViewerStateFunc{
+		stateFunc: func(state *MsgPackViewerState) {
+			bytes, err := msgpack.Marshal(state.Data.Items())
+			if err != nil {
+				state.Error = fmt.Errorf("Could not convert data: %v", err)
+			}
 
-		f, err := os.Open(filename)
-		if err != nil {
-			state.Error = fmt.Errorf("Could not open %s: %v", state.Filename, err)
-			vm.UpdateState(state)
-			return
-		}
-		_, err = f.Write(bytes)
-		if err != nil {
-			state.Error = fmt.Errorf("Could not write file: %v", err)
-			vm.UpdateState(state)
-			return
-		}
+			f, err := os.Open(filename)
+			if err != nil {
+				state.Error = fmt.Errorf("Could not open %s: %v", state.Filename, err)
+				vm.UpdateState(state)
+				return
+			}
+			_, err = f.Write(bytes)
+			if err != nil {
+				state.Error = fmt.Errorf("Could not write file: %v", err)
+				vm.UpdateState(state)
+				return
+			}
 
-		app.Router().Navigate("home")
+			app.Router().Navigate("home")
+
+		},
 	})
 }
 
 func (vm *ViewerViewModel) Save() {
-	vm.WithState(func(state *MsgPackViewerState) {
-		vm.SaveFile(state.Filename)
+	vm.WithState(&ViewerStateFunc{
+		stateFunc: func(state *MsgPackViewerState) {
+			vm.SaveFile(state.Filename)
+		},
 	})
 }
