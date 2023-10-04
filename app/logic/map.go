@@ -2,6 +2,7 @@ package logic
 
 import (
 	"errors"
+	"fmt"
 )
 
 func cloneValue(value interface{}) interface{} {
@@ -16,7 +17,7 @@ func cloneValue(value interface{}) interface{} {
 }
 
 func cloneArray(a []interface{}) []interface{} {
-	newSlice := make([]interface{}, len(a))
+	newSlice := make([]interface{}, 0, len(a))
 
 	for _, v := range a {
 		newSlice = append(newSlice, cloneValue(v))
@@ -58,6 +59,7 @@ func (m *Map) Items() map[string]interface{} {
 
 func (m *Map) Clone() *Map {
 	newMap := &Map{
+		keys:  mapKeys(m.items),
 		items: cloneMap(m.items),
 	}
 	return newMap
@@ -67,21 +69,10 @@ func (m *Map) Set(f *Field) error {
 	if !f.MapParent {
 		return errors.New("Attempt to set array field to map")
 	}
-	m.items[f.Key()] = f.Value()
+	fmt.Printf("Change %s from %v to %v\n", f.Key, m.items[f.Key], f.Value())
+	m.items[f.Key] = f.Value()
 	return nil
 }
-
-/*func (m *Map) SetField(key string, field *Field) {
-	m.items[key] = field.value
-}
-
-func (m *Map) SetArray(key string, array *Array) {
-	m.items[key] = array.items
-}
-
-func (m *Map) SetMap(key string, om *Map) {
-	m.items[key] = om.items
-}*/
 
 func (m *Map) Remove(key string) {
 	delete(m.items, key)
@@ -95,42 +86,22 @@ func (m *Map) GetField(key string) *Field {
 	return NewMapField(key, value)
 }
 
-/*func (m *Map) GetArray(key string) *Array {
-	value, ok := m.items[key]
-	if !ok {
-		return nil
-	}
-	arr, ok := value.([]interface{})
-	if !ok {
-		return nil
-	}
-	return NewArray(arr)
-}
-
-func (m *Map) GetMap(key string) *Map {
-	value, ok := m.items[key]
-	if !ok {
-		return nil
-	}
-	om, ok := value.(map[string]interface{})
-	if !ok {
-		return nil
-	}
-	return NewMap(om)
-}*/
-
-/*func (m *Map) TypeFor(key string) (int, error) {
-	value, ok := m.items[key]
-	if !ok {
-		return int(UnknownType), fmt.Errorf("Key %s does not exist", key)
-	}
-	return int(TypeOf(value)), nil
-}*/
-
 func (m *Map) KeySize() int {
 	return len(m.keys)
 }
 
 func (m *Map) GetKey(i int) string {
 	return m.keys[i]
+}
+
+func (m *Map) DebugString(path string) string {
+	out := ""
+	for k := range m.items {
+		out += m.GetField(k).DebugString(fmt.Sprintf("%s/%s", path, k))
+	}
+	return out
+}
+
+func (m *Map) String() string {
+	return m.DebugString("")
 }

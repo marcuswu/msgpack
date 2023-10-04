@@ -15,7 +15,7 @@ func (a Array) Set(field *Field) error {
 	if field.MapParent {
 		return fmt.Errorf("Attempt to set map field to array type")
 	}
-	i := field.index
+	i := field.Index
 	if i == len(a.items) {
 		a.items = append(a.items, field.Value())
 		return nil
@@ -33,4 +33,12 @@ func (a Array) Get(i int) *Field {
 
 func (a Array) Size() int {
 	return len(a.items)
+}
+
+func (a Array) DebugString(path string) string {
+	out := ""
+	for k, _ := range a.items {
+		out += a.Get(k).DebugString(fmt.Sprintf("%s/%d", path, k))
+	}
+	return out
 }
