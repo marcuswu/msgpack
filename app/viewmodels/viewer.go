@@ -1,14 +1,12 @@
 package viewmodels
 
 import (
+	"bytes"
 	"fmt"
-	"io"
-	"os"
+	"log"
 	"sync/atomic"
 
-	"github.com/marcuswu/msgpack/app"
 	"github.com/marcuswu/msgpack/app/logic"
-	"github.com/marcuswu/msgpack/mobile/state"
 	"github.com/vmihailenco/msgpack/v5"
 )
 
@@ -22,15 +20,30 @@ viewer actions:
 */
 type MsgPackViewerState struct {
 	Filename string
-	data     *logic.Map
+	Data     *logic.Map
 	Error    error
 }
 
-func (s *MsgPackViewerState) Clone() state.UIState {
-	return &MsgPackViewerState{Filename: s.Filename, data: s.data.Clone(), Error: s.Error}
+func (s *MsgPackViewerState) Clone() *MsgPackViewerState {
+	data := s.Data
+	if data != nil {
+		log.Println("Cloning non-nil map data")
+		data = s.Data.Clone()
+	}
+	return &MsgPackViewerState{Data: data, Error: s.Error}
 }
 
-type MsgPackStateFunc func(*MsgPackViewerState)
+type MsgPackStateFunc interface {
+	WithState(*MsgPackViewerState)
+}
+type ViewerStateFunc struct {
+	stateFunc func(*MsgPackViewerState)
+}
+
+func (sf *ViewerStateFunc) WithState(state *MsgPackViewerState) {
+	sf.stateFunc(state)
+}
+
 type MsgPackStateObserver interface {
 	Update(*MsgPackViewerState)
 }
@@ -40,30 +53,21 @@ type ViewerViewModel struct {
 	observers map[string]MsgPackStateObserver
 }
 
-func NewViewerViewModel(filename string) *ViewerViewModel {
-	vm := &ViewerViewModel{}
-	state := vm.CloneState()
-	state.Filename = filename
-	f, err := os.Open(filename)
-	if err != nil {
-		state.Error = err
-		vm.UpdateState(state)
-		return vm
-	}
-	bytes, err := io.ReadAll(f)
-	if err != nil {
-		state.Error = err
-		vm.UpdateState(state)
-		return vm
-	}
+func NewViewerViewModel(fileData []byte) *ViewerViewModel {
+	vm := &ViewerViewModel{observers: make(map[string]MsgPackStateObserver)}
+	state := &MsgPackViewerState{Data: nil, Error: nil}
+
+	log.Println("Creating ViewerViewModel")
 	data := make(map[string]interface{})
-	err = msgpack.Unmarshal(bytes, &data)
+	err := msgpack.Unmarshal(fileData, &data)
 	if err != nil {
+		log.Printf("Failed unpack file: %s\n", err.Error())
 		state.Error = err
 		vm.UpdateState(state)
 		return vm
 	}
-	state.data = logic.NewMap(data)
+	state.Data = logic.NewMap(data)
+	log.Printf("Unpacked and set state data with %d keys", len(data))
 	vm.UpdateState(state)
 	return vm
 }
@@ -76,77 +80,38 @@ func (b *ViewerViewModel) UpdateState(newState *MsgPackViewerState) {
 }
 
 func (b *ViewerViewModel) CloneState() *MsgPackViewerState {
-	return b.state.Load().(*MsgPackViewerState).Clone().(*MsgPackViewerState)
+	state := b.state.Load().(*MsgPackViewerState)
+	if state == nil {
+		log.Println("Cloning nil state")
+		return state
+	}
+	log.Println("Cloning non-nil state")
+	return state.Clone()
 }
 
 func (b *ViewerViewModel) WithState(stateFunc MsgPackStateFunc) {
-	stateFunc(b.state.Load().(*MsgPackViewerState))
+	stateFunc.WithState(b.state.Load().(*MsgPackViewerState))
 }
 
 func (b *ViewerViewModel) Observe(id string, callback MsgPackStateObserver) {
 	b.observers[id] = callback
 }
 
-func (b *ViewerViewModel) ReadState() *MsgPackViewerState {
-	return b.state.Load().(*MsgPackViewerState)
-}
+func (vm *ViewerViewModel) FileData() []byte {
+	byteData := []byte{}
+	vm.WithState(&ViewerStateFunc{
+		stateFunc: func(state *MsgPackViewerState) {
+			var buf bytes.Buffer
+			enc := msgpack.NewEncoder(&buf)
+			enc.SetSortMapKeys(true)
+			err := enc.Encode(state.Data.Items())
 
-func (vm *ViewerViewModel) AddValue(destinationPath string, key string, value *logic.Field) {
-	state := vm.CloneState()
-	state.Error = state.data.Add(destinationPath, key, value)
-	vm.UpdateState(state)
-}
+			if err != nil {
+				state.Error = fmt.Errorf("Could not convert data: %v", err)
+			}
 
-func (vm *ViewerViewModel) ChangeValue(keyPath string, value *logic.Field) {
-	state := vm.CloneState()
-	state.Error = state.data.Set(keyPath, value)
-	vm.UpdateState(state)
-}
-
-func (vm *ViewerViewModel) RemoveValue(keyPath string) {
-	state := vm.CloneState()
-	state.Error = state.data.Remove(keyPath)
-	vm.UpdateState(state)
-}
-
-func (vm *ViewerViewModel) GetValue(keyPath string) (*logic.Field, error) {
-	return vm.ReadState().data.Get(keyPath)
-}
-
-func (vm *ViewerViewModel) KeySize() int {
-	return vm.ReadState().data.KeySize()
-}
-
-func (vm *ViewerViewModel) GetKey(i int) string {
-	return vm.ReadState().data.GetKey(i)
-}
-
-func (vm *ViewerViewModel) SaveFile(filename string) {
-	vm.WithState(func(state *MsgPackViewerState) {
-		bytes, err := msgpack.Marshal(state.data.Items)
-		if err != nil {
-			state.Error = fmt.Errorf("Could not convert data: %v", err)
-		}
-
-		f, err := os.Open(filename)
-		if err != nil {
-			state.Error = fmt.Errorf("Could not open %s: %v", state.Filename, err)
-			vm.UpdateState(state)
-			return
-		}
-		_, err = f.Write(bytes)
-		if err != nil {
-			state.Error = fmt.Errorf("Could not write file: %v", err)
-			vm.UpdateState(state)
-			return
-		}
-
-		app.Router().Navigate("home")
+			byteData = buf.Bytes()
+		},
 	})
-}
-
-func (vm *ViewerViewModel) Save() {
-	vm.WithState(func(state *MsgPackViewerState) {
-		vm.SaveFile(state.Filename)
-	})
+	return byteData
 }

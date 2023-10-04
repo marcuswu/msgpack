@@ -22,7 +22,18 @@ func (s *StartupState) Clone() state.UIState {
 	return &StartupState{HaveConfig: s.HaveConfig}
 }
 
-type SplashStateFunc func(*StartupState)
+// type SplashStateFunc func(*StartupState)
+type SplashStateFunc interface {
+	WithState(*StartupState)
+}
+type StartupStateFunc struct {
+	stateFunc func(*StartupState)
+}
+
+func (sf *StartupStateFunc) WithState(state *StartupState) {
+	sf.stateFunc(state)
+}
+
 type SplashStateObserver interface {
 	Update(*StartupState)
 }
@@ -48,16 +59,16 @@ func (b *SplashViewModel) CloneState() *StartupState {
 }
 
 func (b *SplashViewModel) WithState(stateFunc SplashStateFunc) {
-	stateFunc(b.state.Load().(*StartupState))
+	stateFunc.WithState(b.state.Load().(*StartupState))
 }
 
 func (b *SplashViewModel) Observe(id string, callback SplashStateObserver) {
 	b.observers[id] = callback
 }
 
-func (b *SplashViewModel) ReadState() *StartupState {
-	return b.state.Load().(*StartupState)
-}
+// func (b *SplashViewModel) ReadState() *StartupState {
+// 	return b.state.Load().(*StartupState)
+// }
 
 func (s *SplashViewModel) LoadRemoteConfig() {
 	app.Config().FetchAndActivate(&firebase.ActivateCallback{Callback: func(bool) {
@@ -69,9 +80,11 @@ func (s *SplashViewModel) LoadRemoteConfig() {
 }
 
 func (s *SplashViewModel) CheckNavigate() {
-	s.WithState(func(ss *StartupState) {
-		if ss.HaveConfig {
-			app.Router().Navigate("home")
-		}
+	s.WithState(&StartupStateFunc{
+		stateFunc: func(ss *StartupState) {
+			if ss.HaveConfig {
+				app.Router().Navigate("home")
+			}
+		},
 	})
 }

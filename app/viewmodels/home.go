@@ -24,7 +24,18 @@ func (s *HomeState) Clone() state.UIState {
 	return &HomeState{File: s.File, Error: s.Error}
 }
 
-type HomeStateFunc func(*HomeState)
+// type HomeStateFunc func(*HomeState)
+type HomeStateFunc interface {
+	WithState(*HomeState)
+}
+type HomeScreenFunc struct {
+	stateFunc func(*HomeState)
+}
+
+func (hs *HomeScreenFunc) WithState(state *HomeState) {
+	hs.stateFunc(state)
+}
+
 type HomeStateObserver interface {
 	Update(*HomeState)
 }
@@ -46,16 +57,16 @@ func (b *HomeViewModel) CloneState() *HomeState {
 }
 
 func (b *HomeViewModel) WithState(stateFunc HomeStateFunc) {
-	stateFunc(b.state.Load().(*HomeState))
+	stateFunc.WithState(b.state.Load().(*HomeState))
 }
 
 func (b *HomeViewModel) Observe(id string, callback HomeStateObserver) {
 	b.observers[id] = callback
 }
 
-func (b *HomeViewModel) ReadState() *HomeState {
-	return b.state.Load().(*HomeState)
-}
+// func (b *HomeViewModel) ReadState() *HomeState {
+// 	return b.state.Load().(*HomeState)
+// }
 
 func NewHomeViewModel() *HomeViewModel {
 	return &HomeViewModel{}
