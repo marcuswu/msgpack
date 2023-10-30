@@ -1,10 +1,5 @@
 package logic
 
-import (
-	"errors"
-	"fmt"
-)
-
 func cloneValue(value interface{}) interface{} {
 	switch t := value.(type) {
 	case map[string]interface{}:
@@ -65,43 +60,31 @@ func (m *Map) Clone() *Map {
 	return newMap
 }
 
-func (m *Map) Set(f *Field) error {
-	if !f.MapParent {
-		return errors.New("Attempt to set array field to map")
-	}
-	fmt.Printf("Change %s from %v to %v\n", f.Key, m.items[f.Key], f.Value())
-	m.items[f.Key] = f.Value()
-	return nil
-}
-
 func (m *Map) Remove(key string) {
 	delete(m.items, key)
 }
 
-func (m *Map) GetField(key string) *Field {
-	value, ok := m.items[key]
-	if !ok {
-		return nil
+func (m *Map) GetPath(path string) (*Field, error) {
+	return getPath(m.items, pathSlice(path))
+}
+
+func (m *Map) SetPath(path string, field *Field) error {
+	newItems, err := setPath(m.items, append(pathSlice(path), field.Key), field.value)
+	if err != nil {
+		return err
 	}
-	return NewMapField(key, value)
+	m.items = newItems.(map[string]interface{})
+	return nil
 }
 
-func (m *Map) KeySize() int {
-	return len(m.keys)
+func (m *Map) KeySizeAt(path string) (int, error) {
+	return keySizeAt(m.items, pathSlice(path))
 }
 
-func (m *Map) GetKey(i int) string {
-	return m.keys[i]
+func (m *Map) GetKeyAt(path string, i int) (string, error) {
+	return getKeyAt(m.items, pathSlice(path), i)
 }
 
-func (m *Map) DebugString(path string) string {
-	out := ""
-	for k := range m.items {
-		out += m.GetField(k).DebugString(fmt.Sprintf("%s/%s", path, k))
-	}
-	return out
-}
-
-func (m *Map) String() string {
-	return m.DebugString("")
+func (m *Map) DebugString() string {
+	return debugString(m.items)
 }

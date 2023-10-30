@@ -1,7 +1,5 @@
 package logic
 
-import "fmt"
-
 type Array struct {
 	items []interface{}
 }
@@ -11,34 +9,27 @@ func NewArray(items []interface{}) *Array {
 	return &Array{items: items}
 }
 
-func (a Array) Set(field *Field) error {
-	if field.MapParent {
-		return fmt.Errorf("Attempt to set map field to array type")
+func (a *Array) GetPath(path string) (*Field, error) {
+	return getPath(a.items, pathSlice(path))
+}
+
+func (a *Array) SetPath(path string, value *Field) error {
+	newItems, err := setPath(a.items, pathSlice(path), value.value)
+	if err != nil {
+		return err
 	}
-	i := field.Index
-	if i == len(a.items) {
-		a.items = append(a.items, field.Value())
-		return nil
-	}
-	if i >= len(a.items) {
-		return fmt.Errorf("Index %d out of bounds (len %d)", i, len(a.items))
-	}
-	a.items[i] = field.value
+	a.items = newItems.([]interface{})
 	return nil
 }
 
-func (a Array) Get(i int) *Field {
-	return NewArrayField(i, a.items[i])
+func (a *Array) KeySizeAt(path string) (int, error) {
+	return keySizeAt(a.items, pathSlice(path))
 }
 
-func (a Array) Size() int {
-	return len(a.items)
+func (a *Array) GetKeyAt(path string, i int) (string, error) {
+	return getKeyAt(a.items, pathSlice(path), i)
 }
 
-func (a Array) DebugString(path string) string {
-	out := ""
-	for k, _ := range a.items {
-		out += a.Get(k).DebugString(fmt.Sprintf("%s/%d", path, k))
-	}
-	return out
+func (a *Array) DebugString() string {
+	return debugString(a.items)
 }

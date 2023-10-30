@@ -64,10 +64,6 @@ func (b *HomeViewModel) Observe(id string, callback HomeStateObserver) {
 	b.observers[id] = callback
 }
 
-// func (b *HomeViewModel) ReadState() *HomeState {
-// 	return b.state.Load().(*HomeState)
-// }
-
 func NewHomeViewModel() *HomeViewModel {
 	return &HomeViewModel{}
 }

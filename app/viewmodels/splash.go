@@ -44,7 +44,10 @@ type SplashViewModel struct {
 }
 
 func NewSplashViewModel() *SplashViewModel {
-	return &SplashViewModel{}
+	vm := &SplashViewModel{}
+	state := &StartupState{}
+	vm.UpdateState(state)
+	return vm
 }
 
 func (b *SplashViewModel) UpdateState(newState *StartupState) {
@@ -65,10 +68,6 @@ func (b *SplashViewModel) WithState(stateFunc SplashStateFunc) {
 func (b *SplashViewModel) Observe(id string, callback SplashStateObserver) {
 	b.observers[id] = callback
 }
-
-// func (b *SplashViewModel) ReadState() *StartupState {
-// 	return b.state.Load().(*StartupState)
-// }
 
 func (s *SplashViewModel) LoadRemoteConfig() {
 	app.Config().FetchAndActivate(&firebase.ActivateCallback{Callback: func(bool) {

@@ -23,5 +23,5 @@ type RemoteConfig interface {
 	GetFloat64(string) float64
 	GetInt(string) int
 	GetStr(string) string
-	GetJson(string, string) error
+	GetJson(string) string
 }

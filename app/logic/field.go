@@ -99,23 +99,28 @@ type Container interface {
 }
 
 type Field struct {
-	MapParent bool
-	Index     int
-	Key       string
-	value     interface{}
+	Key   string
+	value interface{}
 }
 
 // Only used w/in Go -- Ok to be skipped by gomobile
-func NewArrayField(index int, v interface{}) *Field {
-	return &Field{MapParent: false, Index: index, value: v}
+// func NewArrayField(index int, v interface{}) *Field {
+// 	if TypeOf(v) == UnknownType {
+// 		fmt.Printf("Go Found unknown field with key %s\n", key)
+// 	}
+// 	return &Field{Index: index, value: v}
+// }
+
+func NewField() *Field {
+	return &Field{}
 }
 
 // Only used w/in Go -- Ok to be skipped by gomobile
-func NewMapField(key string, v interface{}) *Field {
+func NewFieldWithValue(key string, v interface{}) *Field {
 	if TypeOf(v) == UnknownType {
 		fmt.Printf("Go Found unknown field with key %s\n", key)
 	}
-	return &Field{MapParent: true, Key: key, value: v}
+	return &Field{Key: key, value: v}
 }
 
 // For use in Go -- can be skipped by gomobile
@@ -125,6 +130,10 @@ func (f *Field) Value() interface{} {
 
 func (f *Field) Type() int {
 	return int(TypeOf(f.value))
+}
+
+func (f *Field) Clone() *Field {
+	return NewFieldWithValue(f.Key, cloneValue(f.value))
 }
 
 func (f *Field) IsNil() bool {
@@ -319,16 +328,16 @@ func (f *Field) SetArray(a *Array) {
 	f.value = a.items
 }
 
-func (f *Field) DebugString(path string) string {
+func (f *Field) DebugString() string {
 	t := TypeOf(f.value)
 	switch t {
 	case MapType:
 		m, _ := f.GetMap()
-		return fmt.Sprintf("%s: Map\n%s", path, m.DebugString(path))
+		return m.DebugString()
 	case ArrayType:
 		a, _ := f.GetArray()
-		return fmt.Sprintf("%s: Array\n%s", path, a.DebugString(path))
+		return a.DebugString()
 	default:
-		return fmt.Sprintf("%s: %s = %v\n", path, TypeString(t), f.value)
+		return fmt.Sprintf("%s: %s = %v\n", f.Key, TypeString(t), f.value)
 	}
 }
